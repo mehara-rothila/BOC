@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, FileVideo, Brain, Clock, DollarSign, CheckCircle, AlertCircle, Loader2, Play, Download, Eye, Mic, MicOff, Square } from 'lucide-react'
+import { Upload, FileVideo, Brain, Clock, DollarSign, CheckCircle, AlertCircle, Loader2, Play, Download, Eye, Mic, Square } from 'lucide-react'
 
 interface TranscriptionResult {
   jobName: string
@@ -80,7 +80,7 @@ export default function LectureTranscription() {
       recognition.onstart = () => {
         setIsListening(true)
         setError(null)
-        console.log('🎙️ Live transcription started')
+        console.log('Live transcription started')
       }
       
       recognition.onresult = (event) => {
@@ -111,7 +111,7 @@ export default function LectureTranscription() {
       recognition.onend = () => {
         setIsListening(false)
         setInterimTranscript('')
-        console.log('🎙️ Live transcription stopped')
+        console.log('Live transcription stopped')
       }
       
       setSpeechRecognition(recognition)
@@ -150,11 +150,10 @@ export default function LectureTranscription() {
   const uploadToS3 = async (file: File): Promise<string> => {
     try {
       setProgress(10)
-      setStatus('🚀 Calling AWS Lambda for upload URL...')
+      setStatus('Calling AWS Lambda for upload URL...')
       
-      console.log('🔄 Starting Lambda upload process...')
-      console.log('📁 File details:', { name: file.name, size: file.size, type: file.type })
-      console.log('🌐 Lambda API URL:', LAMBDA_API_URL)
+      console.log('Starting Lambda upload process...')
+      console.log('File details:', { name: file.name, size: file.size, type: file.type })
       
       // Call Lambda API to get presigned upload URL
       const requestBody = {
@@ -163,7 +162,7 @@ export default function LectureTranscription() {
         fileType: file.type,
       }
       
-      console.log('📤 Sending request to Lambda:', requestBody)
+      console.log('Sending request to Lambda:', requestBody)
       
       const response = await fetch(LAMBDA_API_URL, {
         method: 'POST',
@@ -173,33 +172,32 @@ export default function LectureTranscription() {
         body: JSON.stringify(requestBody),
       })
       
-      console.log('📥 Lambda response status:', response.status)
-      console.log('📥 Lambda response headers:', Object.fromEntries(response.headers.entries()))
+      console.log('Lambda response status:', response.status)
       
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('❌ Lambda API error response:', errorText)
+        console.error('Lambda API error response:', errorText)
         throw new Error(`Lambda API error: ${response.status} - ${errorText}`)
       }
       
       const data = await response.json()
-      console.log('✅ Lambda response data:', data)
+      console.log('Lambda response data:', data)
       
       if (!data.success) {
-        console.error('❌ Lambda returned error:', data.error)
+        console.error('Lambda returned error:', data.error)
         throw new Error(`Lambda error: ${data.error || 'Unknown error'}`)
       }
       
       if (!data.uploadUrl) {
-        console.error('❌ No upload URL in Lambda response:', data)
+        console.error('No upload URL in Lambda response:', data)
         throw new Error('Lambda did not return upload URL')
       }
       
       setProgress(20)
-      setStatus('📤 Uploading to S3 via Lambda-generated URL...')
+      setStatus('Uploading to S3...')
       
-      console.log('🔗 Using presigned URL:', data.uploadUrl.substring(0, 100) + '...')
-      console.log('🎯 File key:', data.fileKey)
+      console.log('Using presigned URL for upload')
+      console.log('File key:', data.fileKey)
       
       // Upload file using Lambda-generated presigned URL
       const uploadResponse = await fetch(data.uploadUrl, {
@@ -210,25 +208,24 @@ export default function LectureTranscription() {
         },
       })
 
-      console.log('📤 S3 upload response status:', uploadResponse.status)
-      console.log('📤 S3 upload response headers:', Object.fromEntries(uploadResponse.headers.entries()))
+      console.log('S3 upload response status:', uploadResponse.status)
 
       if (!uploadResponse.ok) {
         const errorText = await uploadResponse.text()
-        console.error('❌ S3 upload failed:', errorText)
+        console.error('S3 upload failed:', errorText)
         throw new Error(`S3 upload failed: ${uploadResponse.status} - ${errorText}`)
       }
 
       setProgress(40)
-      setStatus(`✅ File uploaded via Lambda! S3 location: ${data.bucketName}/${data.fileKey}`)
+      setStatus(`File uploaded successfully! S3 location: ${data.bucketName}/${data.fileKey}`)
       
-      console.log('✅ LAMBDA-POWERED S3 UPLOAD SUCCESSFUL!')
-      console.log('📦 Bucket:', data.bucketName)
-      console.log('🔑 File Key:', data.fileKey)
+      console.log('S3 upload successful')
+      console.log('Bucket:', data.bucketName)
+      console.log('File Key:', data.fileKey)
       
       return data.fileKey
     } catch (error) {
-      console.error('💥 Upload process failed:', error)
+      console.error('Upload process failed:', error)
       throw new Error(`AWS Lambda Upload Failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -236,10 +233,10 @@ export default function LectureTranscription() {
   const startTranscription = async (fileKey: string): Promise<string> => {
     try {
       setProgress(50)
-      setStatus('🎙️ Calling AWS Lambda to start transcription...')
+      setStatus('Starting AWS transcription job...')
       
-      console.log('🔄 Starting Lambda transcription process...')
-      console.log('📁 File key:', fileKey)
+      console.log('Starting transcription process...')
+      console.log('File key:', fileKey)
       
       // Call Lambda API to start transcription job
       const response = await fetch(LAMBDA_API_URL, {
@@ -253,32 +250,30 @@ export default function LectureTranscription() {
         }),
       })
       
-      console.log('📥 Lambda transcription response status:', response.status)
+      console.log('Lambda transcription response status:', response.status)
       
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('❌ Lambda transcription error:', errorText)
+        console.error('Lambda transcription error:', errorText)
         throw new Error(`Lambda API error: ${response.status} - ${errorText}`)
       }
       
       const data = await response.json()
-      console.log('✅ Lambda transcription response:', data)
+      console.log('Lambda transcription response:', data)
       
       if (!data.success) {
         throw new Error(`Lambda error: ${data.error || 'Unknown error'}`)
       }
       
       setProgress(60)
-      setStatus(`✅ AWS Transcribe job started via Lambda: ${data.jobName}`)
+      setStatus(`AWS Transcribe job started: ${data.jobName}`)
       
-      console.log('✅ LAMBDA-POWERED TRANSCRIPTION JOB CREATED!')
-      console.log('🎙️ Job Name:', data.jobName)
-      console.log('📍 Media URI:', data.mediaUri)
-      console.log('🎵 Format:', data.mediaFormat)
+      console.log('Transcription job created successfully')
+      console.log('Job Name:', data.jobName)
       
       return data.jobName
     } catch (error) {
-      console.error('💥 Lambda transcription error:', error)
+      console.error('Lambda transcription error:', error)
       throw new Error(`AWS Lambda Transcription Failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -291,7 +286,7 @@ export default function LectureTranscription() {
       try {
         attempts++
         
-        console.log(`🔄 Checking Lambda status for job: ${jobName} (attempt ${attempts})`)
+        console.log(`Checking job status: ${jobName} (attempt ${attempts})`)
         
         // Call Lambda API to check job status
         const response = await fetch(LAMBDA_API_URL, {
@@ -310,7 +305,7 @@ export default function LectureTranscription() {
         }
         
         const data = await response.json()
-        console.log('📊 Lambda status check:', data)
+        console.log('Status check response:', data)
         
         if (!data.success) {
           throw new Error(`Lambda error: ${data.error || 'Unknown error'}`)
@@ -318,16 +313,16 @@ export default function LectureTranscription() {
         
         const jobStatus = data.status
         
-        setStatus(`🔄 AWS Transcribe Status via Lambda: ${jobStatus} (${attempts}/${maxAttempts})`)
+        setStatus(`AWS Transcribe Status: ${jobStatus} (${attempts}/${maxAttempts})`)
         console.log(`Transcription job ${jobName} status: ${jobStatus}`)
         
         if (jobStatus === 'COMPLETED') {
           setProgress(90)
           
-          // If Lambda already returned the transcript, use it directly
+          // If Lambda returned the transcript, use it directly
           if (data.transcript && data.transcript.length > 50) {
-            console.log('✅ Lambda returned REAL transcript directly!')
-            console.log('📝 Real transcript preview:', data.transcript.substring(0, 200) + '...')
+            console.log('Lambda returned transcript directly')
+            console.log('Transcript preview:', data.transcript.substring(0, 200) + '...')
             
             const analysis = generateAIAnalysis(data.transcript)
             
@@ -345,62 +340,29 @@ export default function LectureTranscription() {
             setResult(result)
             setProgress(100)
             setProcessing(false)
-            setStatus('🎉 REAL AWS transcript loaded via Lambda!')
+            setStatus('AWS transcript loaded successfully!')
             
-            console.log('✅ REAL AWS TRANSCRIPT DISPLAYED!')
+            console.log('AWS transcript displayed successfully!')
             return
           } else {
-            console.log('❌ Lambda did not return transcript, trying manual fetch...')
+            console.log('Transcript not available in response, using demo content')
             
-            // Try to get transcript manually from AWS console
-            const realTranscript = prompt(`Lambda couldn't fetch the transcript automatically.
-
-Please copy the REAL transcript from AWS Console and paste here:
-
-1. Go to: AWS Console > Transcribe > Jobs > ${jobName}
-2. Click "View transcript"  
-3. Copy the full text and paste below:
-
-(Or click Cancel to see demo content)`)
-            
-            if (realTranscript && realTranscript.length > 50) {
-              console.log('✅ Using REAL transcript from manual input!')
-              
-              const analysis = generateAIAnalysis(realTranscript)
-              
-              const result: TranscriptionResult = {
-                jobName,
-                transcript: realTranscript,
-                summary: analysis.summary,
-                keyPoints: analysis.keyPoints,
-                confidence: 96,
-                timestamp: new Date().toLocaleString(),
-                status: 'COMPLETED (REAL AWS DATA)',
-                s3Url: data.transcriptUri,
-              }
-              
-              setResult(result)
-              setProgress(100)
-              setProcessing(false)
-              setStatus('🎉 REAL AWS transcript from manual input!')
-              
-              console.log('✅ REAL AWS TRANSCRIPT DISPLAYED!')
-              return
-            }
+            // Fall back to demo content if transcript not available
+            console.log('⚠️ Transcript not available in response, using demo content')
           }
           
-          // Only use demo content as last resort
-          console.log('⚠️ Using demo content - could not get real transcript')
+          // Use demo content as fallback
+          console.log('Using demo content - transcript not available')
           const demoResult: TranscriptionResult = {
             jobName,
-            transcript: `[DEMO CONTENT] - Real AWS job "${jobName}" completed successfully, but transcript could not be automatically retrieved. In production, this would use backend APIs or WebSocket connections for real-time access.`,
-            summary: "Real AWS Transcribe job completed successfully. Demo content shown due to automatic transcript retrieval limitations.",
+            transcript: `[DEMO CONTENT] - AWS job "${jobName}" completed successfully. Transcript retrieval needs backend API configuration for automatic access.`,
+            summary: "AWS Transcribe job completed successfully. Demo content shown due to transcript retrieval limitations.",
             keyPoints: [
-              "✅ Real S3 upload completed successfully",
-              "✅ Real AWS Transcribe job processed the file", 
+              "✅ S3 upload completed successfully",
+              "✅ AWS Transcribe job processed the file", 
               "✅ Job completed with professional results",
-              "🔧 Transcript retrieval needs backend API in production",
-              "🎯 Demo shows enterprise-ready error handling"
+              "🔧 Transcript retrieval needs backend API configuration",
+              "🎯 Enterprise-ready error handling demonstrated"
             ],
             confidence: 94,
             timestamp: new Date().toLocaleString(),
@@ -411,7 +373,7 @@ Please copy the REAL transcript from AWS Console and paste here:
           setResult(demoResult)
           setProgress(100)
           setProcessing(false)
-          setStatus('✅ AWS job completed - showing demo content')
+          setStatus('AWS job completed - showing demo content')
           return
         } else if (jobStatus === 'FAILED') {
           throw new Error(`AWS Transcription job failed via Lambda`)
@@ -424,8 +386,8 @@ Please copy the REAL transcript from AWS Console and paste here:
           setTimeout(poll, 10000) // Poll every 10 seconds
         }
       } catch (error) {
-        console.error('💥 Lambda polling error:', error)
-        setError(error instanceof Error ? error.message : 'Failed to check transcription status via Lambda')
+        console.error('Lambda polling error:', error)
+        setError(error instanceof Error ? error.message : 'Failed to check transcription status')
         setProcessing(false)
       }
     }
@@ -474,10 +436,9 @@ Please copy the REAL transcript from AWS Console and paste here:
       setProcessing(true)
       setError(null)
       setProgress(10)
-      setStatus('🚀 Initializing AWS Lambda services...')
+      setStatus('Initializing AWS Lambda services...')
 
-      console.log('🎬 STARTING REAL AWS LAMBDA WORKFLOW!')
-      console.log('📁 File to process:', file.name, file.size, 'bytes')
+      console.log('Starting AWS Lambda workflow for file:', file.name)
 
       // Step 1: Upload to S3 via Lambda
       const fileKey = await uploadToS3(file)
@@ -491,7 +452,7 @@ Please copy the REAL transcript from AWS Console and paste here:
       await pollTranscriptionStatus(newJobName)
 
     } catch (error) {
-      console.error('💥 Process error:', error)
+      console.error('Process error:', error)
       setError(error instanceof Error ? error.message : 'An error occurred during processing')
       setUploading(false)
       setProcessing(false)
@@ -722,7 +683,7 @@ Please copy the REAL transcript from AWS Console and paste here:
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-lg flex items-center">
-                      <div className="bg-gray-100 p-1 rounded mr-2">📝</div>
+                      <div className="bg-gray-100 p-1 rounded mr-2">📄</div>
                       Full Transcript
                     </h3>
                     <div className="text-sm text-gray-500">
