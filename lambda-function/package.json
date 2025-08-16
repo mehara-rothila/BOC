@@ -1,0 +1,15 @@
+{
+  "name": "transcribe-handler-lambda",
+  "version": "1.0.0",
+  "description": "AWS Lambda function for lecture transcription processing",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["aws", "lambda", "transcribe", "s3", "serverless"],
+  "author": "Team Xforce",
+  "license": "MIT",
+  "dependencies": {
+    "aws-sdk": "^2.1469.0"
+  }
+}
