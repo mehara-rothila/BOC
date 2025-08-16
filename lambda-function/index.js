@@ -24,7 +24,7 @@ exports.handler = async (event) => {
     // Log everything safely
     try {
         console.log('🚀 Lambda invoked at:', new Date().toISOString());
-        console.log('📥 Event received:', JSON.stringify(event));
+        console.log('🔥 Event received:', JSON.stringify(event));
     } catch (logError) {
         console.log('Logging error, but continuing...');
     }
@@ -81,7 +81,7 @@ exports.handler = async (event) => {
             return createResponse(400, { 
                 success: false, 
                 error: 'Missing "action" in request body',
-                validActions: ['getUploadUrl', 'startTranscription', 'getJobStatus']
+                validActions: ['getUploadUrl', 'startTranscription', 'getJobStatus', 'listVideos']
             });
         }
 
@@ -99,12 +99,15 @@ exports.handler = async (event) => {
             case 'getJobStatus':
                 return await safeHandleJobStatus(requestBody);
                 
+            case 'listVideos':
+                return await safeHandleListVideos(requestBody);
+                
             default:
                 console.log('❌ Unknown action:', action);
                 return createResponse(400, { 
                     success: false, 
                     error: `Unknown action: ${action}`,
-                    validActions: ['getUploadUrl', 'startTranscription', 'getJobStatus']
+                    validActions: ['getUploadUrl', 'startTranscription', 'getJobStatus', 'listVideos']
                 });
         }
 
@@ -321,6 +324,84 @@ async function safeHandleJobStatus(body) {
         return createResponse(500, {
             success: false,
             error: 'Failed to check job status',
+            details: error.message
+        });
+    }
+}
+
+// SAFE: Handle S3 video listing - REAL DYNAMIC DATA!
+async function safeHandleListVideos(body) {
+    try {
+        console.log('📂 Listing real S3 videos from bucket...');
+        
+        // List all objects in the videos/ folder
+        const listParams = {
+            Bucket: BUCKET_NAME,
+            Prefix: 'videos/', // Only get videos folder
+            MaxKeys: 100 // Reasonable limit
+        };
+
+        const listResult = await s3.listObjectsV2(listParams).promise();
+        console.log(`📋 Found ${listResult.Contents.length} objects in S3`);
+
+        // Filter and format video files
+        const videos = listResult.Contents
+            .filter(obj => {
+                // Only include actual video files, not folders
+                return obj.Key !== 'videos/' && 
+                       obj.Size > 0 && 
+                       /\.(mp4|mov|avi|mkv|webm)$/i.test(obj.Key);
+            })
+            .map(obj => {
+                // Extract info from S3 object
+                const fileName = obj.Key.replace('videos/', '');
+                const fileId = fileName.split(/[-_]/)[0] || Date.now().toString();
+                
+                // Generate job name (look for pattern or create one)
+                const jobName = `transcription-${fileId}`;
+                
+                // Build S3 URL
+                const s3Url = `https://${BUCKET_NAME}.s3.amazonaws.com/${encodeURIComponent(obj.Key)}`;
+                
+                // Format file size - matches your style
+                const formatFileSize = (bytes) => {
+                    if (bytes === 0) return '0 B';
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+                };
+
+                return {
+                    id: fileId,
+                    fileName: fileName,
+                    s3Key: obj.Key,
+                    s3Url: s3Url,
+                    jobName: jobName,
+                    uploadDate: obj.LastModified.toLocaleString(),
+                    size: formatFileSize(obj.Size),
+                    status: 'completed',
+                    transcriptStatus: 'AVAILABLE',
+                    transcriptUrl: `https://${BUCKET_NAME}.s3.amazonaws.com/transcripts/${jobName}.json`
+                };
+            });
+
+        console.log(`✅ Processed ${videos.length} video files`);
+        console.log('🎬 Videos found:', videos.map(v => v.fileName));
+
+        return createResponse(200, {
+            success: true,
+            videos: videos,
+            count: videos.length,
+            bucket: BUCKET_NAME,
+            message: `✅ Found ${videos.length} real videos in S3 bucket`
+        });
+
+    } catch (error) {
+        console.error('💥 List videos error:', error);
+        return createResponse(500, {
+            success: false,
+            error: 'Failed to list S3 videos',
             details: error.message
         });
     }
