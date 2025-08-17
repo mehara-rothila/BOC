@@ -1,4 +1,4 @@
-// src/components/LectureTranscription.tsx - FULLY MOBILE RESPONSIVE
+// src/components/LectureTranscription.tsx - FIXED FILE NAMING - FULLY MOBILE RESPONSIVE
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
@@ -14,6 +14,8 @@ interface TranscriptionResult {
   timestamp: string
   status: string
   s3Url?: string
+  actualFileName: string  // 🔧 NEW: Track actual filename
+  actualS3Key: string     // 🔧 NEW: Track actual S3 key
 }
 
 const LAMBDA_API_URL = 'https://b07lipve48.execute-api.us-east-1.amazonaws.com/prod/transcribe'
@@ -148,7 +150,8 @@ export default function LectureTranscription() {
     initializeSpeechRecognition()
   }, [initializeSpeechRecognition])
 
-  const uploadToS3 = async (file: File): Promise<string> => {
+  // 🔧 FIXED: Let Lambda generate filename, then use what it returns
+  const uploadToS3 = async (file: File): Promise<{ fileKey: string; actualFileName: string }> => {
     try {
       setProgress(10)
       setStatus('Calling AWS Lambda for upload URL...')
@@ -156,12 +159,19 @@ export default function LectureTranscription() {
       console.log('Starting Lambda upload process...')
       console.log('File details:', { name: file.name, size: file.size, type: file.type })
       
+      // 🔧 NEW APPROACH: Send original filename, let Lambda generate the key
+      // Lambda will create: videos/{timestamp}_{cleanName}
+      console.log('🔧 Sending original filename to Lambda:', file.name)
+      
       // Call Lambda API to get presigned upload URL
       const requestBody = {
         action: 'getUploadUrl',
-        fileName: file.name,
+        fileName: file.name, // 🔧 Send EXACT original filename
         fileType: file.type,
       }
+      
+      console.log('📤 Request body being sent to Lambda:', requestBody)
+      console.log('📤 Expected result: videos/{timestamp}_' + file.name.replace(/[^a-zA-Z0-9.-]/g, '_'))
       
       console.log('Sending request to Lambda:', requestBody)
       
@@ -182,7 +192,19 @@ export default function LectureTranscription() {
       }
       
       const data = await response.json()
-      console.log('Lambda response data:', data)
+      console.log('📋 Lambda response data:', data)
+      console.log('🔍 Checking fileKey from Lambda:', data.fileKey)
+      
+      // 🔧 VERIFY: Check if Lambda used our filename correctly
+      const expectedPattern = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+      console.log('🔍 Expected filename pattern:', expectedPattern)
+      console.log('🔍 Actual fileKey from Lambda:', data.fileKey)
+      
+      if (!data.fileKey.includes(expectedPattern.replace('.mp4', ''))) {
+        console.warn('⚠️ WARNING: Lambda fileKey does not match expected pattern!')
+        console.warn('⚠️ Expected to contain:', expectedPattern.replace('.mp4', ''))
+        console.warn('⚠️ Actually got:', data.fileKey)
+      }
       
       if (!data.success) {
         console.error('Lambda returned error:', data.error)
@@ -198,7 +220,8 @@ export default function LectureTranscription() {
       setStatus('Uploading to S3...')
       
       console.log('Using presigned URL for upload')
-      console.log('File key:', data.fileKey)
+      console.log('File key from Lambda:', data.fileKey)
+      console.log('🔧 Lambda will generate the actual filename with timestamp')
       
       // Upload file using Lambda-generated presigned URL
       const uploadResponse = await fetch(data.uploadUrl, {
@@ -222,9 +245,26 @@ export default function LectureTranscription() {
       
       console.log('S3 upload successful')
       console.log('Bucket:', data.bucketName)
-      console.log('File Key:', data.fileKey)
+      console.log('File Key (from Lambda):', data.fileKey)
       
-      return data.fileKey
+      // 🔧 Extract actual filename from Lambda-generated fileKey
+      // Lambda creates: videos/1755413924528_test1.mp4
+      // We need: 1755413924528_test1.mp4
+      const actualFileName = data.fileKey.replace('videos/', '')
+      
+      console.log('🔧 Extracted actual filename:', actualFileName)
+      console.log('🔧 Original input filename was:', file.name)
+      console.log('🔧 This will be used for access code generation')
+      
+      // 🔧 PREVIEW: Show what the access code will look like
+      const previewJobName = 'transcription-' + Date.now()
+      const previewAccessCode = `${previewJobName}::${data.fileKey}`
+      console.log('🔗 PREVIEW Access Code will be:', previewAccessCode)
+      
+      return { 
+        fileKey: data.fileKey, 
+        actualFileName: actualFileName 
+      }
     } catch (error) {
       console.error('Upload process failed:', error)
       throw new Error(`AWS Lambda Upload Failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -279,7 +319,7 @@ export default function LectureTranscription() {
     }
   }
 
-  const pollTranscriptionStatus = async (jobName: string) => {
+  const pollTranscriptionStatus = async (jobName: string, actualFileName: string, actualS3Key: string) => {
     const maxAttempts = 60 // 5 minutes max for demo
     let attempts = 0
 
@@ -336,6 +376,8 @@ export default function LectureTranscription() {
               timestamp: new Date().toLocaleString(),
               status: 'COMPLETED (REAL AWS DATA)',
               s3Url: data.transcriptUri,
+              actualFileName: actualFileName,  // 🔧 NEW: Store actual filename
+              actualS3Key: actualS3Key         // 🔧 NEW: Store actual S3 key
             }
             
             setResult(result)
@@ -344,6 +386,7 @@ export default function LectureTranscription() {
             setStatus('AWS transcript loaded successfully!')
             
             console.log('AWS transcript displayed successfully!')
+            console.log('🔧 Actual file details:', { actualFileName, actualS3Key })
             return
           } else {
             console.log('Transcript not available in response, using demo content')
@@ -369,12 +412,15 @@ export default function LectureTranscription() {
             timestamp: new Date().toLocaleString(),
             status: 'COMPLETED (DEMO MODE)',
             s3Url: data.transcriptUri,
+            actualFileName: actualFileName,  // 🔧 NEW: Store actual filename
+            actualS3Key: actualS3Key         // 🔧 NEW: Store actual S3 key
           }
           
           setResult(demoResult)
           setProgress(100)
           setProcessing(false)
           setStatus('AWS job completed - showing demo content')
+          console.log('🔧 Demo result with actual file details:', { actualFileName, actualS3Key })
           return
         } else if (jobStatus === 'FAILED') {
           throw new Error(`AWS Transcription job failed via Lambda`)
@@ -429,6 +475,7 @@ export default function LectureTranscription() {
     }
   }
 
+  // 🔧 FIXED: Process file with updated naming
   const processFile = async () => {
     if (!file) return
 
@@ -441,8 +488,8 @@ export default function LectureTranscription() {
 
       console.log('Starting AWS Lambda workflow for file:', file.name)
 
-      // Step 1: Upload to S3 via Lambda
-      const fileKey = await uploadToS3(file)
+      // Step 1: Upload to S3 via Lambda (Lambda generates filename with timestamp)
+      const { fileKey, actualFileName } = await uploadToS3(file)
       setUploading(false)
       
       // Step 2: Start transcription via Lambda
@@ -450,7 +497,7 @@ export default function LectureTranscription() {
       setJobName(newJobName)
       
       // Step 3: Poll for completion via Lambda
-      await pollTranscriptionStatus(newJobName)
+      await pollTranscriptionStatus(newJobName, actualFileName, fileKey)
 
     } catch (error) {
       console.error('Process error:', error)
@@ -474,6 +521,16 @@ export default function LectureTranscription() {
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  // 🔧 NEW: Generate correct access code using actual file details
+  const generateCorrectAccessCode = (result: TranscriptionResult) => {
+    const accessCode = `${result.jobName}::${result.actualS3Key}`
+    console.log('🔗 Generating access code:')
+    console.log('  Job Name:', result.jobName)
+    console.log('  S3 Key:', result.actualS3Key)
+    console.log('  Final Access Code:', accessCode)
+    return accessCode
   }
 
   return (
@@ -725,7 +782,7 @@ export default function LectureTranscription() {
                       </div>
                     </div>
 
-                    {/* UNIFIED Access Code for Students - MOBILE RESPONSIVE */}
+                    {/* 🔧 FIXED: Student Access Code with CORRECT filename - MOBILE RESPONSIVE */}
                     <div className="space-y-4">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                         <h3 className="font-bold text-lg sm:text-xl flex items-center text-gray-800 mb-3 sm:mb-0">
@@ -736,18 +793,18 @@ export default function LectureTranscription() {
                       
                       <div className="p-4 sm:p-6 bg-purple-50 rounded-2xl border border-purple-200">
                         <div className="text-center mb-4 sm:mb-6">
-                          <p className="text-purple-800 mb-4 font-medium text-sm sm:text-base">Share this single access code with your students:</p>
+                          <p className="text-purple-800 mb-4 font-medium text-sm sm:text-base">Share this CORRECTED access code with your students:</p>
                         </div>
                         
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
                           <code className="flex-1 bg-white px-3 sm:px-4 py-2 sm:py-3 rounded-lg border font-mono text-purple-900 tracking-wide text-xs sm:text-sm break-all">
-                            {result.jobName}::videos/{result.jobName.replace('transcription-', '')}_lecture.mp4
+                            {generateCorrectAccessCode(result)}
                           </code>
                           <button 
                             onClick={() => {
-                              const accessCode = `${result.jobName}::videos/${result.jobName.replace('transcription-', '')}_lecture.mp4`
+                              const accessCode = generateCorrectAccessCode(result)
                               navigator.clipboard.writeText(accessCode)
-                              alert('Access code copied!')
+                              alert('✅ CORRECT access code copied!')
                             }}
                             className="flex items-center justify-center text-purple-600 hover:text-purple-800 font-medium transition-colors bg-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg border hover:shadow-md text-sm sm:text-base"
                           >
@@ -756,12 +813,22 @@ export default function LectureTranscription() {
                           </button>
                         </div>
                         
+                        {/* 🔧 NEW: Show file details */}
+                        <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-white rounded-lg border border-purple-200">
+                          <h4 className="font-semibold text-purple-900 mb-2 text-sm">🔧 File Details (Fixed):</h4>
+                          <div className="space-y-1 text-xs text-purple-700">
+                            <div><strong>Job Name:</strong> {result.jobName}</div>
+                            <div><strong>S3 Key:</strong> {result.actualS3Key}</div>
+                            <div><strong>Actual Filename:</strong> {result.actualFileName}</div>
+                          </div>
+                        </div>
+                        
                         <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-white rounded-lg border border-purple-200">
                           <p className="text-purple-600 text-xs sm:text-sm text-center">
-                            <strong>Instructions for students:</strong><br/>
+                            <strong>🔧 FIXED:</strong> Access codes now use the correct filename pattern!<br/>
                             1. Copy the access code above<br/>
-                            2. Paste it in the &quot;Real-time Lecture Access&quot; field<br/>
-                            3. Click &quot;Load Complete Lecture&quot; for instant access!
+                            2. Paste it in the "Real-time Lecture Access" field<br/>
+                            3. Click "Load Complete Lecture" for instant access!
                           </p>
                         </div>
                       </div>
