@@ -827,8 +827,8 @@ export default function LectureTranscription() {
                           <p className="text-purple-600 text-xs sm:text-sm text-center">
                             <strong>🔧 FIXED:</strong> Access codes now use the correct filename pattern!<br/>
                             1. Copy the access code above<br/>
-                            2. Paste it in the "Real-time Lecture Access" field<br/>
-                            3. Click "Load Complete Lecture" for instant access!
+                            2. Paste it in the &quot;Real-time Lecture Access&quot; field<br/>
+                            3. Click &quot;Load Complete Lecture&quot; for instant access!
                           </p>
                         </div>
                       </div>
@@ -966,7 +966,7 @@ export default function LectureTranscription() {
                   <div className="text-center py-12 sm:py-20">
                     <Mic className="mx-auto h-12 w-12 sm:h-20 sm:w-20 text-gray-300 mb-4 sm:mb-6" />
                     <p className="text-gray-500 text-lg sm:text-xl mb-2 sm:mb-3 font-medium">
-                      {isListening ? 'Listening for speech...' : 'Click "Start Live" to begin real-time transcription'}
+                      {isListening ? 'Listening for speech...' : 'Click &quot;Start Live&quot; to begin real-time transcription'}
                     </p>
                     <p className="text-gray-400 text-base sm:text-lg">
                       Perfect for live lectures, presentations, and meetings
