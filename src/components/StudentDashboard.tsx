@@ -1,4 +1,4 @@
-// src/components/StudentDashboard.tsx - FIXED VOICE NOTE PLAYBACK - FULLY MOBILE RESPONSIVE
+// src/components/StudentDashboard.tsx - FIXED VIDEO PLAYBACK ISSUE - FULLY MOBILE RESPONSIVE
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -74,7 +74,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   
   const videoRef = useRef<HTMLVideoElement>(null)
-  const voiceNoteRef = useRef<HTMLAudioElement>(null) // FIXED: This ref now connects to actual audio element
+  const voiceNoteRef = useRef<HTMLAudioElement>(null)
   const progressBarRef = useRef<HTMLDivElement>(null)
 
   const enrolledCourses = mockCourses.filter(course => user.enrolledCourses.includes(course.id.toString()))
@@ -314,6 +314,23 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
     }))
   }
 
+  // 🔧 FIXED: buildS3Url function - The main fix for video playback!
+  const buildS3Url = (s3Key: string) => {
+    const baseUrl = 'https://lecture-transcription-demo-2025.s3.amazonaws.com/'
+    
+    // Split the path and encode only the filename parts, not the forward slashes
+    const pathParts = s3Key.split('/')
+    const encodedPath = pathParts.map(part => encodeURIComponent(part)).join('/')
+    
+    console.log('🔧 Building S3 URL:')
+    console.log('  Original S3 Key:', s3Key)
+    console.log('  Path Parts:', pathParts)
+    console.log('  Encoded Path:', encodedPath)
+    console.log('  Final URL:', baseUrl + encodedPath)
+    
+    return baseUrl + encodedPath
+  }
+
   // Load complete video with access code
   const loadCompleteVideo = async () => {
     if (!s3BucketInput.trim()) return
@@ -349,7 +366,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
         description: 'Real-time lecture loaded with access code from instructor',
         fileName: s3Key,
         s3Key: s3Key,
-        s3Url: buildS3Url(s3Key),
+        s3Url: buildS3Url(s3Key), // 🔧 Using the FIXED buildS3Url function!
         jobName: jobId,
         uploadDate: new Date().toLocaleDateString(),
         status: 'completed',
@@ -358,6 +375,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
       }
       
       console.log('✅ Complete video loaded:', completeVideo)
+      console.log('🔧 Generated S3 URL:', completeVideo.s3Url)
       
       await selectVideo(completeVideo)
       setS3BucketInput('')
@@ -370,11 +388,6 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
     } finally {
       setIsLoadingS3Video(false)
     }
-  }
-
-  const buildS3Url = (s3Key: string) => {
-    const baseUrl = 'https://lecture-transcription-demo-2025.s3.amazonaws.com/'
-    return baseUrl + encodeURIComponent(s3Key)
   }
 
   // Update current time
